@@ -1,0 +1,40 @@
+--- 
+- hosts: demo
+  become: yes
+  vars:
+    file: information.txt
+
+  tasks:
+    - name: Copy the file
+      copy:    
+        src: ./files/information.txt
+        dest: /files/
+        backup: yes
+      register: content_changed
+      
+    - name: Backup file if content is changed
+      find:
+         recurse: no
+         paths: /files/
+         patterns:
+          - '{{file}}\..*~'
+         use_regex: true
+      register: find_backup
+      when: content_changed.changed 
+
+    - name: Select the latest backup found on disk
+      set_fact:
+        latest_backup: "{{ (find_backup.files | sort(attribute='mtime') | last).path }}"
+      when: content_changed.changed
+
+    - name: Show the latest selected backup
+      debug:
+        var: latest_backup
+      when: content_changed.changed
+
+    - name: "Restore latest backup of {{ file }}"
+      copy:
+        src: "{{ latest_backup }}"
+        remote_src: true
+        dest: /file/information.txt
+      when: content_changed.changed
